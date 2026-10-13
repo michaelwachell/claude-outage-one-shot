@@ -123,7 +123,9 @@ playwright_flows:
       response_bodies: errors_only      # errors_only | never
 
 credentials:
-  # Env var NAMES only — never values. Values are read from the shell environment at run time.
+  # Env var NAMES only — never values. Values are read from the shell environment at run time, or
+  # from an optional sibling profiles/<this-file's-name>.env (KEY= per line, mode 600, gitignored,
+  # generated blank by the init wizard for you to fill in by hand) if the shell doesn't have them.
   username_env: OUTAGE_AUTH_USERNAME
   password_env: OUTAGE_AUTH_PASSWORD
   totp_secret_env: OUTAGE_AUTH_TOTP_SECRET

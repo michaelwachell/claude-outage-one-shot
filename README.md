@@ -29,8 +29,10 @@ These are hardcoded, not configurable to anything less safe:
   a temporary `git worktree` — never a `git reset`, `checkout --`, or `clean` against your checkout.
 - **Never commits or pushes code**, in any repository, for any reason.
 - **Never prints a raw credential value.** Config holds environment variable *names* only; secrets are
-  read from the environment at the moment a Playwright flow needs them and never pass through model
-  output. All evidence text runs through `scripts/redact.py` before it reaches a report or terminal.
+  read from the shell environment, or from an optional local `profiles/<name>.env` file (mode 600,
+  never committed, never read into Claude's own context — see "Credential values" below), only at the
+  moment a Playwright flow needs them, and never pass through model output. All evidence text runs
+  through `scripts/redact.py` before it reaches a report or terminal.
 - **An unavailable evidence source is never evidence of health.** If Datadog, Sentry, LogRocket, a
   repo, or a flow can't be reached, the report says so explicitly and excludes it from confidence — it
   never reads as "nothing wrong there."
@@ -98,6 +100,15 @@ over.
 
 Config lives outside this repo and outside whatever repo you're diagnosing, in a per-OS user directory
 (see "Storage layout" in `SKILL.md`) — never inside a project's own `.git`.
+
+### Credential values
+
+If a Playwright flow needs auth and the wizard notices the credential env var names aren't already
+set in your shell, it offers to generate `profiles/<name>.env` next to the profile — a blank
+`KEY=` template (mode 600) for the three env var names, for you to fill in by hand in your own editor.
+It's loaded automatically at run time only for whichever flow needs it, only if the shell doesn't
+already have the value, and only inside that one subprocess invocation — never read into Claude's own
+context, never committed, never shared. The shell environment always takes priority over this file.
 
 ### During an incident
 

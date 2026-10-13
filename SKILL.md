@@ -54,12 +54,15 @@ user, for the duration of a `run`. If a conflict arises, safety wins.
    isolated cached clone or a temporary worktree for all inspection (see "Repository inspection"
    below).
 3. **Never commit or push code**, in any repository, for any reason, during a run.
-4. **Never print, log, persist, or include in a report a raw credential value.** Config holds env var
-   *names* only. Read secret values from the environment only at the moment a Playwright flow needs
-   them, pass them directly into the browser automation, and never let them pass through your own
-   visible output, subagent prompts that don't need them, or the report. Run all evidence text
-   (Datadog/Sentry/LogRocket payloads, Playwright console/network dumps, repo snippets) through
-   `scripts/redact.py` before it reaches a report or terminal output.
+4. **Never print, log, persist, or include in a report a raw credential value.** Config (`profiles/<name>.yaml`)
+   holds env var *names* only, never values. Values come from either the shell environment or the
+   optional sibling `profiles/<name>.env` file (see "Credential value storage" below) — read them only
+   at the moment a Playwright flow needs them, pass them directly into the browser automation, and
+   never let them pass through your own visible output, subagent prompts that don't need them, or the
+   report. The orchestrator (you) never reads `.env` file contents into your own context either —
+   only the exact subprocess invocation executing that flow loads it, and only for its own duration.
+   Run all evidence text (Datadog/Sentry/LogRocket payloads, Playwright console/network dumps, repo
+   snippets) through `scripts/redact.py` before it reaches a report or terminal output.
 5. **An unavailable evidence source is not evidence of health.** If Datadog, Sentry, LogRocket, a repo,
    or a flow can't be reached, say so explicitly and exclude it from confidence — never let its absence
    read as "nothing wrong there."
@@ -102,7 +105,8 @@ Inside that directory:
 ```text
 outage-one-shot/
 ├── profiles/
-│   └── <profile-name>.yaml       # one config file per profile — see templates/config.example.yaml
+│   ├── <profile-name>.yaml       # one config file per profile — see templates/config.example.yaml
+│   └── <profile-name>.env        # OPTIONAL, holds raw credential VALUES — see "Credential value storage" below
 ├── cache/
 │   └── repos/<service-id>/       # managed clones for services configured with repo_url but no repo_path
 ├── worktrees/                    # ephemeral, cleaned up after each run
@@ -115,6 +119,29 @@ outage-one-shot/
 ```
 
 Create these directories on first use (`mkdir -p`). Never assume they exist.
+
+### Credential value storage
+
+`profiles/<name>.yaml` holds env var *names* only — it's safe to view, share, or commit elsewhere.
+`profiles/<name>.env`, if present, is the opposite: it holds the actual secret *values* for those
+names, in plaintext at rest. It is optional — the shell environment at run time is still checked
+first and takes priority (so a value already exported there is never shadowed by a stale `.env`
+entry) — but it's offered during the wizard (Step 6) as a convenience over having to export
+credentials by hand every session.
+
+Rules for this file, non-negotiable:
+- Generated only by the wizard, as a `KEY=` template with every value left blank for the user to fill
+  in by hand outside of any Claude Code session — never ask the user to paste a secret value into
+  chat, and never write one into this file yourself.
+- Created with mode `600` (owner read/write only) immediately on creation; `doctor` re-checks and
+  warns if it's ever more permissive than that.
+- Lives only under the user-global storage directory above — never inside a project repo, never in
+  the shared skill's own directory, and never something `git add`-able by accident.
+- Loaded only by the exact subprocess invocation that executes a Playwright flow needing it (e.g.
+  `set -a; source profiles/<name>.env; set +a` scoped to that one command), and only if the shell
+  environment doesn't already have the value. You (the orchestrator) never `cat`, `Read`, or
+  otherwise load its contents into your own context — doing so would defeat the whole point of
+  keeping values out of model-visible output.
 
 ## `init` — the wizard
 
@@ -222,6 +249,13 @@ test file path if they already have Playwright specs. If `authentication.require
 env var *names* (never values) — offer the shared `credentials` block's names as defaults if already
 set. Ask about capture settings (screenshots/trace/console/network — defaults from the template are
 sane; don't force the user through every field if they're fine with defaults).
+
+If `authentication.required` and any of those three env var names aren't already set in the current
+shell, offer (via `AskUserQuestion`) to generate `profiles/<name>.env` — a template with those exact
+names as blank `KEY=` lines, created with mode `600` — so the user can fill in real values in their own
+editor instead of exporting them by hand every session. Never write a value into it yourself, never
+ask the user to paste one into chat, and tell them plainly where the file is and that it must never be
+committed anywhere (see "Credential value storage" above for the full rules this file follows).
 
 **Validate what you can right now**: if a Playwright runner is available (check via
 `scripts/doctor.sh`'s Playwright section, or by trying `npx playwright --version`), offer to run a
@@ -382,8 +416,13 @@ Same return shape as the Datadog agent. Skip entirely (mark `logrocket: unavaila
 One agent per configured flow (or a bounded pool sized by `max_concurrent_agents` if there are many
 flows). Give each agent only its own flow's config, including that flow's specific credential env var
 *names* if `authentication.required` — the agent reads the values from the environment itself when
-executing the flow; you never read or relay the values yourself. Use whatever Playwright execution
-path is available (a Playwright MCP server if configured, else local `@playwright/test` via Bash). If
+executing the flow; you never read or relay the values yourself. If a name isn't already set in the
+shell, the agent should check for a sibling `profiles/<name>.env` (see "Credential value storage"
+above) and load it only within the exact subprocess invocation running the flow (e.g.
+`set -a; source profiles/<name>.env; set +a` scoped to that one command) — never read the file into
+its own returned output, and never fall back to asking anyone for the value directly. Use whatever
+Playwright execution path is available (a Playwright MCP server if configured, else local
+`@playwright/test` via Bash). If
 Playwright's managed browser binaries aren't installed (`doctor.sh`'s check covers this), a local run
 can silently fall back to whatever browser happens to be on PATH instead of failing — reproduced during
 this skill's own smoke test. Always record which browser actually ran the flow in `limitations`, and

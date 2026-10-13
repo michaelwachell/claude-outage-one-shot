@@ -166,9 +166,10 @@ fi
 section "Credential environment variables"
 if [[ "$HAVE_PYYAML" -eq 1 ]]; then
   python3 - "$CONFIG_PATH" <<'PYEOF'
-import sys, yaml, os
+import sys, yaml, os, stat
 
-cfg = yaml.safe_load(open(sys.argv[1]))
+config_path = sys.argv[1]
+cfg = yaml.safe_load(open(config_path))
 env_names = set()
 
 creds = cfg.get("credentials") or {}
@@ -182,13 +183,31 @@ for flow in cfg.get("playwright_flows") or []:
         if k.endswith("_env") and v:
             env_names.add(v)
 
+# Sibling <profile>.env, if present, is loaded at run time for any name not already in the shell —
+# check its permissions and which KEYS it defines, but never read or print the values themselves.
+env_file = os.path.splitext(config_path)[0] + ".env"
+env_file_keys = set()
+if os.path.isfile(env_file):
+    mode = stat.S_IMODE(os.stat(env_file).st_mode)
+    if mode & 0o077:
+        print(f"  [WARN] {env_file} is more permissive than mode 600 (group/other can read it) — chmod 600 it")
+    else:
+        print(f"  [OK]   {env_file} exists with safe permissions (mode 600)")
+    with open(env_file) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                env_file_keys.add(line.split("=", 1)[0].strip())
+
 if not env_names:
     print("  [WARN] No credential env var names found in config")
 for name in sorted(env_names):
     if os.environ.get(name):
         print(f"  [OK]   {name} is set in this shell (value not shown)")
+    elif name in env_file_keys:
+        print(f"  [OK]   {name} is defined in {env_file} (value not shown, not verified non-empty)")
     else:
-        print(f"  [WARN] {name} is referenced by config but not currently set in this shell")
+        print(f"  [WARN] {name} is referenced by config but not set in this shell or in {env_file}")
 PYEOF
 else
   warn "Skipped (pyyaml unavailable) — Claude should read the credential env var names directly from config and check them with 'printenv <name>'"
