@@ -4,6 +4,11 @@
 
 # outage-one-shot
 
+> **Not affiliated with, endorsed by, or sponsored by the NFL or any NFL club.** This is an
+> independent personal project. "NFL" does not appear anywhere in this repo's code, docs, or
+> examples, and the sample report under `examples/` is a genericized illustration, not real data
+> from any specific company.
+
 A read-only, active-incident diagnostic skill for [Claude Code](https://claude.com/claude-code).
 
 Point it at an outage and it gathers evidence from Datadog, Sentry, LogRocket, Playwright flow
