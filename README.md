@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./assets/logo.png" alt="outage-one-shot logo" width="220">
+</p>
+
 # outage-one-shot
 
 A read-only, active-incident diagnostic skill for [Claude Code](https://claude.com/claude-code).
