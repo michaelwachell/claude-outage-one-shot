@@ -1,0 +1,69 @@
+{
+  "_note": "Sanitized real example — service names, URLs, and vendor specifics genericized to the fictional names used in templates/config.example.yaml. See sample-report.md for the human-readable version.",
+  "profile": "example-production",
+  "run_type": "health_check",
+  "generated_at": "2026-10-13T23:08:10Z",
+  "window": {"incident": {"start": "2026-10-13T22:38:10Z", "end": "2026-10-13T23:08:10Z"}, "baseline": {"start": "2026-10-13T22:08:10Z", "end": "2026-10-13T22:38:10Z"}},
+  "immediate_assessment": {
+    "probable_root_cause": "No outage. account-api error growth is Probable chronic IDP 400-404s scaling with evening traffic. The prior token-exchange hypothesis is falsified by code review.",
+    "status": "Probable",
+    "confidence": "Medium",
+    "current_impact": "None observed; live login passed in 21.3s",
+    "failure_boundary": "None; minor contained account-api anomalies (15 outbound timeouts from 22:56:31Z, 13 session-sync failures 23:05:48-57Z)"
+  },
+  "immediate_mitigation": [
+    {"step": "Do not roll back account-api's runtime migration", "status": "Probable", "why": "Merged 11-13h before window; errors traffic-proportional; login healthy", "risk": "Rollback adds runtime churn without addressing any observed failure", "validation": "None needed", "rollback_condition": "Revisit only if account-api error-per-request ratio rises next peak"}
+  ],
+  "next_five_minutes": {
+    "action": "Optional: query account-api's /user-session-sync endpoint 23:05:40-23:06:05Z grouped by status, client, IDP response",
+    "validation": "Compute account-api errors per request for both windows",
+    "missing_evidence": "IDP-side journey logs 23:05:48-57Z; upstream host of the 22:56:31Z timeouts"
+  },
+  "key_evidence": [
+    {"id": "E1", "source": "playwright", "status": "Confirmed", "confidence": "High", "detail": "account.example.com login PASS 21.3s, no 5xx"},
+    {"id": "E2", "source": "observability_platform", "status": "Confirmed", "detail": "IDP volume +2%, 500s flat; identity-api errors -15%; media-auth-api -34%"},
+    {"id": "E3", "source": "observability_platform", "status": "Confirmed", "detail": "account-api errors 1578->2262; 2101 are chronic IDP 400-404 (raw counts, sampling-biased)"},
+    {"id": "E4", "source": "observability_platform", "status": "Possible", "detail": "IDP tenant sessions +50%, auth +32%, grants +38%; evening peak unconfirmed"},
+    {"id": "E5", "source": "observability_platform", "timestamp": "2026-10-13T22:56:31Z", "detail": "15 account-api outbound fast-fail timeouts; target unknown"},
+    {"id": "E6", "source": "observability_platform", "timestamp": "2026-10-13T23:05:48Z", "detail": "13 'Error syncing IDP user: undefined' in 9s"},
+    {"id": "E7", "source": "repo:account-api", "status": "Confirmed", "confidence": "High", "detail": "Token-exchange helper's early return (inside try) still lets errors reach the shared handler; only success-path tracing is skipped"},
+    {"id": "E8", "source": "repo:account-api", "status": "Confirmed", "confidence": "High", "detail": "Burst log prints the wrong field on an HTTP error object (always empty); the code path it's in calls a different IDP journey endpoint, not the token-exchange helper"},
+    {"id": "E9", "source": "git", "status": "Confirmed", "detail": "account-api's two migration PRs merged 09:47:54Z and 11:21:03Z, both 11-13h before the window"},
+    {"id": "E10", "source": "repo:idp-tenant-config", "status": "Confirmed", "timestamp": "2026-10-13T21:06:00Z", "detail": "IDP script patched to handle a missing user-identifier attribute as expected; explains related account-api log hits as known noise"},
+    {"id": "E11", "source": "observability_platform", "status": "Confirmed", "timestamp": "2026-10-13T22:56:53Z", "detail": "account-web path-traversal probe, 136 req, all rejected"},
+    {"id": "E12", "source": "sentry", "status": "Confirmed", "confidence": "Low", "detail": "No new/escalating issues; 1% sampling"}
+  ],
+  "competing_hypotheses": [
+    {"rank": 1, "hypothesis": "Healthy; chronic 400-404s scale with evening traffic", "status": "Probable", "confidence": "Medium", "falsifying_test": "Higher error-per-request ratio in window vs baseline"},
+    {"rank": 2, "hypothesis": "Transient IDP sync-journey failure or single-client retry caused the burst", "status": "Possible", "confidence": "Low", "falsifying_test": "Distribution of the 13 failures by client and IDP response status"},
+    {"rank": 3, "hypothesis": "account-api's migration introduced a latent regression that surfaced under peak", "status": "Unlikely", "confidence": "Medium", "falsifying_test": "New error classes absent before the migration's merge time"},
+    {"rank": 4, "hypothesis": "Token-exchange early return caused the sync burst (previous leading hypothesis)", "status": "Unlikely", "confidence": "High", "note": "Falsified by E7/E8"},
+    {"rank": 5, "hypothesis": "Outbound timeouts related to the security probe", "status": "Unlikely", "confidence": "Medium", "note": "Different services; timeouts preceded the probe by 22s"}
+  ],
+  "timeline": [
+    {"time": "2026-10-13T09:47:54Z", "observation": "account-api migration PR #1 merged", "source": "git"},
+    {"time": "2026-10-13T11:21:03Z", "observation": "account-api migration PR #2 merged", "source": "git"},
+    {"time": "2026-10-13T21:06:00Z", "observation": "IDP tenant script patched for missing user-identifier attribute", "source": "idp_config"},
+    {"time": "2026-10-13T22:56:31Z", "observation": "account-api outbound timeouts begin (15)", "source": "observability_platform"},
+    {"time": "2026-10-13T22:56:53Z", "observation": "account-web path-traversal probe (136, rejected)", "source": "observability_platform"},
+    {"time": "2026-10-13T23:05:48Z", "observation": "13 session-sync failures in 9s", "source": "observability_platform"},
+    {"time": "2026-10-13T23:08:00Z", "observation": "Login flow PASS", "source": "playwright", "note": "approximate"}
+  ],
+  "sources": {
+    "observability_platform": "available",
+    "sentry": "available (1% sampling)",
+    "session_replay": "unavailable: not configured",
+    "playwright": "available",
+    "repositories": ["identity-api", "account-api", "media-auth-api", "account-web", "idp-tenant-config"]
+  },
+  "corrective_actions": [
+    {"priority": "High", "repo": "account-api", "action": "Fix session-sync error logging to capture real HTTP error status/body/message", "validation": "Next failure shows a real reason, not 'undefined'"},
+    {"priority": "High", "repo": "media-auth-api", "action": "Ticket the silently deleted endpoint; confirm live callers; restore or deprecate", "validation": "Zero unexpected 404s, or documented deprecation"},
+    {"priority": "Medium", "repo": "account-web", "action": "Merge the in-progress HTTP client timeout fix", "validation": "Hung upstream now fails instead of hanging"},
+    {"priority": "Medium", "repo": "account-api", "action": "Set explicit request-body size limit; document stricter content-type handling", "validation": "No unexpected rejections after the change"},
+    {"priority": "Medium", "repo": "identity-api", "action": "Fix malformed bearer token field name", "validation": "Real token sent in staging"},
+    {"priority": "Low", "repo": "account-api", "action": "Error-per-request monitor", "validation": "Flat across next peak"},
+    {"priority": "Low", "repo": "cross-team", "action": "Confirm entitlement-tier migration rollout status", "validation": "Owner sign-off"}
+  ],
+  "remediation_executed": false
+}

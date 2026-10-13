@@ -128,6 +128,12 @@ Claude will:
    mitigation-first summary to the terminal immediately — no scrolling past the fix to find out what
    it is.
 
+**Curious what that actually looks like?** [`examples/sample-report.md`](./examples/sample-report.md)
+(+ [`.json`](./examples/sample-report.json)) is a real run's output, lightly genericized to the
+fictional service names from `templates/config.example.yaml` — same structure, same evidence-driven
+reasoning, same willingness to overturn its own leading hypothesis mid-synthesis when the code didn't
+back it up.
+
 ### Validating the skill itself
 
 `SKILL.md`'s "Example scenario" section describes a minimal smoke test: `init --profile demo` against
