@@ -130,7 +130,6 @@ credentials:
 
 repository_behavior:
   allow_auto_fetch: true
-  skip_on_uncommitted_changes: true
   allow_temp_worktrees: true
   max_repo_age_before_fetch: 15m
   branch_convention: "main is always deployed to prod"

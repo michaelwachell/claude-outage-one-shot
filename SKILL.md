@@ -231,10 +231,11 @@ at setup time, not during a real incident.
 
 ### Step 7 — Repository behavior
 
-Ask for: allow auto-fetch (default yes), skip repos with uncommitted changes (default yes — this is
-the safe default and should need an explicit override to disable), allow temporary worktrees (default
-yes), max repo age before a forced fetch (default 15m), branch/release convention description,
-production branch name, monorepo subpaths already captured per-service in Step 4/5.
+Ask for: allow auto-fetch (default yes), allow temporary worktrees (default yes), max repo age before
+a forced fetch (default 15m), branch/release convention description, production branch name, monorepo
+subpaths already captured per-service in Step 4/5. There is no "skip dirty repos" option — a dirty
+working tree is never a reason to skip a repo (see Repository Agents); it only changes whether a clone
+or a worktree is used, and uncommitted changes are never inspected either way.
 
 Reaffirm to the user in plain language: *"outage-one-shot will never modify your working tree, discard
 local changes, reset branches, or auto-merge/rebase — it always works from an isolated clone or
@@ -422,21 +423,17 @@ One agent per service/frontend likely to be relevant (prioritize by suspected se
 context, dependency edges, and anything Datadog/Sentry/LogRocket agents flagged if you're staging this
 after a first pass — otherwise cover all configured repos if time allows).
 
-Before an agent inspects anything: resolve the repo to an isolated location:
+Before an agent inspects anything: resolve the repo to an isolated location. This is unconditional —
+a dirty working tree is never a reason to skip a repo; it only changes which isolation mechanism is
+used. Uncommitted local changes are never inspected either way, since neither a clone nor a worktree
+sees them unless they happen to be pushed.
 - If `repo_path` exists locally: check `git status --porcelain`.
-  - If dirty and `skip_on_uncommitted_changes` is true (the default): skip inspecting this repo
-    entirely — do not clone it, do not create a worktree, do not touch it. Record it as unavailable
-    with reason "working tree has uncommitted changes, skipped per config" (per Safety Rule 5, this
-    exclusion must not read as "nothing wrong there").
-  - If dirty and `skip_on_uncommitted_changes` is false: still inspect it, but — per Safety Rule 2 —
-    never touch the dirty working tree directly, even with read-only commands. Create a fresh clone
-    into `cache/repos/<id>/` from its `repo_url` (if available) or a temporary worktree from a clean
-    ref, and inspect that instead.
-- If clean: always prefer a worktree (`git worktree add`) at the production branch / most likely
-  deployed commit rather than running analysis directly in the engineer's checkout, so a
-  concurrently-running `git fetch` or branch switch by the agent never surprises the user.
-  This is unconditional — it does not depend on `skip_on_uncommitted_changes`, which only governs the
-  dirty case above.
+  - If dirty: per Safety Rule 2, never touch the dirty working tree directly, even with read-only
+    commands. Create a fresh clone into `cache/repos/<id>/` from its `repo_url` (if available) or a
+    temporary worktree from a clean ref, and inspect that instead.
+  - If clean: always prefer a worktree (`git worktree add`) at the production branch / most likely
+    deployed commit rather than running analysis directly in the engineer's checkout, so a
+    concurrently-running `git fetch` or branch switch by the agent never surprises the user.
 - Fetch remote state first (`git fetch`) subject to `max_repo_age_before_fetch`.
 - Record the exact commit SHA inspected. If a deployed-commit indicator exists (tag, release branch,
   CI metadata file) use it; otherwise fall back to the configured `default_branch`/`production_branch`

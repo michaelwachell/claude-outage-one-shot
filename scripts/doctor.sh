@@ -151,7 +151,7 @@ for item in items:
                 capture_output=True, text=True
             )
             if dirty.returncode == 0 and dirty.stdout.strip():
-                print(f"  [WARN] {rid}: working tree has uncommitted changes (repository_behavior.skip_on_uncommitted_changes governs handling)")
+                print(f"  [WARN] {rid}: working tree has uncommitted changes — will be inspected via an isolated clone/worktree, not skipped, and uncommitted changes won't be visible there")
         else:
             print(f"  [WARN] {rid}: local path does not exist yet ({expanded}) — will need clone if repo_url is set")
     if repo_url and not repo_path:
