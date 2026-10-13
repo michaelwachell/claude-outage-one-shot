@@ -1,0 +1,143 @@
+# outage-one-shot profile config
+# One file per profile. Generated/edited by `outage-one-shot init`.
+# NEVER put raw secret values in this file — only env var NAMES.
+
+profile:
+  name: example-production
+  system_name: Example Product
+  environment: production
+  org: example-org           # optional
+  default_lookback: 30m
+  timezone: America/Los_Angeles
+  # Base reports dir for this profile — must sit under the OS-resolved storage root from SKILL.md's
+  # "Storage layout" section (macOS shown here). A per-run <timestamp>/ subdir is appended at run time.
+  report_dir: ~/Library/Application Support/outage-one-shot/reports/example-production
+  write_json_report: true
+
+mcp:
+  datadog:
+    server_name: plugin:engineer:datadog   # exact name as shown by `claude mcp list`
+    site: datadoghq.com
+    default_service_filters:
+      - identity-api
+      - account-web
+    default_env_tags:
+      - env:prod
+    extra_tags:                            # optional: team/app/cluster/region/namespace
+      team: identity
+    useful_queries:
+      - name: 5xx by service
+        query: "status:error env:prod"
+      - name: latency p95
+        query: "service:identity-api"
+  sentry:
+    server_name: sentry                    # exact name as shown by `claude mcp list`
+    organization: example-org
+    projects:
+      - identity-api
+      - account-web
+    environment: production
+    release_convention: "YYYY.MM.DD.N"     # describe how releases are named
+    service_project_map:
+      identity-api: identity-api
+      account-web: account-web
+    default_filters:
+      - "is:unresolved"
+
+services:
+  - id: identity-api
+    name: Identity API
+    description: Primary identity and account API
+    repo_path: /path/to/repos/identity-api      # local path, remote url, or both
+    repo_url: git@github.com:example/identity-api.git
+    default_branch: main
+    monorepo_subpath: null                      # e.g. "packages/identity-api"
+    datadog:
+      service_names: [identity-api]
+      tags: ["env:prod"]
+    sentry:
+      projects: [identity-api]
+    dependencies: [cassandra, ping-aic]
+    health_urls:
+      - https://api.example.com/health
+    ownership:
+      team: identity
+
+frontends:
+  - id: account-web
+    name: Account Web
+    description: User account management frontend
+    repo_path: /path/to/repos/account-web
+    repo_url: git@github.com:example/account-web.git
+    default_branch: main
+    monorepo_subpath: null
+    datadog:
+      service_names: [account-web]
+    sentry:
+      projects: [account-web]
+    base_urls:
+      production: https://account.example.com
+    dependencies: [identity-api]
+
+playwright_flows:
+  - id: login
+    name: User login
+    description: Verify that a normal user can authenticate
+    base_url: https://www.example.com
+    start_url: https://www.example.com/login
+    timeout_seconds: 45
+    criticality: critical               # critical | high | medium | low
+    existing_test_path: null            # path to an existing .spec.ts, if preferred over declarative steps
+    authentication:
+      required: true
+      username_env: OUTAGE_AUTH_USERNAME
+      password_env: OUTAGE_AUTH_PASSWORD
+      totp_secret_env: OUTAGE_AUTH_TOTP_SECRET
+    steps:
+      - Navigate to the login page
+      - Enter the configured username
+      - Enter the configured password
+      - Submit the form
+      - Complete TOTP if prompted
+      - Verify navigation to the authenticated landing page
+      - Verify the expected account identifier is visible
+    assertions:
+      - No uncaught browser exceptions
+      - No failed critical API calls
+      - HTTP responses required by the flow are below 500
+      - Expected authenticated UI is rendered
+    capture:
+      screenshots: on_failure           # on_failure | always | never
+      trace: on_failure
+      console_logs: true
+      network_failures: true
+      response_bodies: errors_only      # errors_only | never
+
+credentials:
+  # Env var NAMES only — never values. Values are read from the shell environment at run time.
+  username_env: OUTAGE_AUTH_USERNAME
+  password_env: OUTAGE_AUTH_PASSWORD
+  totp_secret_env: OUTAGE_AUTH_TOTP_SECRET
+
+repository_behavior:
+  allow_auto_fetch: true
+  skip_on_uncommitted_changes: true
+  allow_temp_worktrees: true
+  max_repo_age_before_fetch: 15m
+  branch_convention: "main is always deployed to prod"
+  production_branch: main
+
+runtime_defaults:
+  default_lookback: 30m
+  max_concurrent_agents: 6
+  max_execution_time: 20m
+  playwright_concurrent: true
+  skip_noncritical_flows_under_time_pressure: true
+  report_format: markdown_and_json
+  allow_remediation_suggestions: true
+  allow_remediation_execution: false   # must stay false; see SKILL.md safety section
+
+retention:
+  keep_reports_days: 30
+  keep_playwright_artifacts_days: 7
+  keep_cached_clones: true
