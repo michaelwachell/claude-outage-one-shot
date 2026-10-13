@@ -43,6 +43,13 @@ mcp:
       account-web: account-web
     default_filters:
       - "is:unresolved"
+  logrocket:
+    server_name: logrocket                 # exact name as shown by `claude mcp list`
+    organization: example-org
+    projects:
+      - account-web                        # LogRocket projects map to frontends, not backend services
+    environment: production
+    default_filters: []                    # optional: saved session/issue segments useful during an outage
 
 services:
   - id: identity-api
@@ -75,6 +82,8 @@ frontends:
       service_names: [account-web]
     sentry:
       projects: [account-web]
+    logrocket:
+      project: account-web
     base_urls:
       production: https://account.example.com
     dependencies: [identity-api]

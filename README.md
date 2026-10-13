@@ -2,8 +2,8 @@
 
 A read-only, active-incident diagnostic skill for [Claude Code](https://claude.com/claude-code).
 
-Point it at an outage and it gathers evidence from Datadog, Sentry, Playwright flow execution, and
-your own repositories; fans the work out to specialized subagents; correlates what comes back; and
+Point it at an outage and it gathers evidence from Datadog, Sentry, LogRocket, Playwright flow
+execution, and your own repositories; fans the work out to specialized subagents; correlates what comes back; and
 hands everything to the strongest available reasoning model to produce a ranked, confidence-scored
 root-cause report — mitigation first, verbose analysis after.
 
@@ -31,9 +31,9 @@ These are hardcoded, not configurable to anything less safe:
 - **Never prints a raw credential value.** Config holds environment variable *names* only; secrets are
   read from the environment at the moment a Playwright flow needs them and never pass through model
   output. All evidence text runs through `scripts/redact.py` before it reaches a report or terminal.
-- **An unavailable evidence source is never evidence of health.** If Datadog, Sentry, a repo, or a
-  flow can't be reached, the report says so explicitly and excludes it from confidence — it never
-  reads as "nothing wrong there."
+- **An unavailable evidence source is never evidence of health.** If Datadog, Sentry, LogRocket, a
+  repo, or a flow can't be reached, the report says so explicitly and excludes it from confidence — it
+  never reads as "nothing wrong there."
 - **Every claim carries a confidence word** — Confirmed / Probable / Possible / Unlikely / Unknown —
   so a hypothesis is never presented as a confirmed root cause.
 
@@ -60,9 +60,10 @@ the file, the config, or a user instruction for the duration of a run.
    - For live Playwright flows: either a Playwright MCP server configured, or Node + `npx` with
      `@playwright/test` installed (`npx playwright install chromium` to get managed browser binaries —
      without them, a flow run can silently fall back to whatever browser happens to be on `PATH`).
-   - Datadog and/or Sentry MCP servers configured and authenticated, if you want those evidence
-     sources. The skill still works without either — it just marks that source `unavailable` and keeps
-     going.
+   - Datadog, Sentry, and/or LogRocket MCP servers configured and authenticated, if you want those
+     evidence sources. The skill still works without any of them — it just marks that source
+     `unavailable` and keeps going. (LogRocket is a session-replay/frontend source — it maps to your
+     configured frontends, not backend services.)
 
 4. Run the doctor check against a profile once you've built one (see below) to confirm everything's
    wired up:
@@ -88,7 +89,7 @@ for checkout-production, last 30 minutes" maps onto `run --profile checkout-prod
 
 ### First-time setup
 
-Run `/outage-one-shot init` and answer the wizard's questions: MCP server detection (Datadog/Sentry),
+Run `/outage-one-shot init` and answer the wizard's questions: MCP server detection (Datadog/Sentry/LogRocket),
 profile metadata, service and frontend inventory (repo paths/URLs, Datadog service names, Sentry
 projects), Playwright flows for your critical user journeys, repository behavior (fetch/worktree
 policy), and runtime defaults (concurrency, time budget, report format). The wizard writes incrementally
@@ -108,7 +109,7 @@ Claude will:
 1. Load the profile and gather incident context conversationally (symptoms, start time, affected
    segment — a single free-text answer covering several of these is fine).
 2. Validate readiness, marking anything unreachable as unavailable rather than blocking the run.
-3. Fan out concurrent subagents: Datadog, Sentry, one per Playwright flow, one per repository.
+3. Fan out concurrent subagents: Datadog, Sentry, LogRocket, one per Playwright flow, one per repository.
 4. Run a Timeline Correlation pass and a Skeptic pass over the combined evidence.
 5. Synthesize a ranked RCA on the strongest available model, with an explicit confidence word on
    every claim.
